@@ -50,7 +50,7 @@ async def on_message(message):
 @bot.event
 async def on_raw_reaction_add(payload):
     """function for translates message from the English keyboard layout to Ukrainian"""
-    if payload.emoji.name == ':unlock:':
+    if payload.emoji.name == '🔓':
         mesid = payload.message_id
         chanid = payload.channel_id
         channel = bot.get_channel(chanid)
@@ -67,7 +67,7 @@ async def help(ctx):
     embed.set_author(name = 'Help')
     embed.add_field(name = 'Common commands', value='%clear - Delets messages\n%temp - gives the temperature in the chosen city(example: %temp Kyiv)\n%weather - gives the weather in the chosen city(example: %weather Kyiv)', inline=False)
     embed.add_field(name = 'Music commands', value='%join - makes bot join your voice channel\n%leave - makes bot leave voice channel\n%play - makes bot play music from link or name \n(example: %play https://www.youtube.com/watch?v=nybtOIxlku8)\n%playlist - makes bot play playlist from link (example is the same as %play)\n%queue - shows the current queue of the songs\n%pause - pauses the song\n%resume - resumes the song\n%skip - skips the song', inline=False)
-    embed.add_field(name = 'Other commands', value='react on message with :unlock: to translate message from the English keyboard layout to Ukrainian', inline=False)
+    embed.add_field(name = 'Other commands', value='react on message with 🔓 to translate message from the English keyboard layout to Ukrainian', inline=False)
 
     await ctx.send(embed = embed)
 
