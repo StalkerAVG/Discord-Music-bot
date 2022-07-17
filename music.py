@@ -19,7 +19,7 @@ class music(commands.Cog):
             "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
         }
         self.ydl_opts = {'format': "bestaudio",
-            'cookiefile': 'youtube.com_cookies.txt',
+            'cookiefile': 'youtube.com_cookies.txt',#to access age-restricted videos on youtube, you must provide a file with cookies
             'quiet': True,
             'extract_flat': True,
             'skip_download': True}
