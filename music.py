@@ -19,7 +19,7 @@ class music(commands.Cog):
             "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
         }
         self.ydl_opts = {'format': "bestaudio",
-            'cookiefile': 'youtube.com_cookies.txt',#to access age-restricted videos on youtube, you must provide a file with cookies
+            'cookiefile': 'youtube.com_cookies.txt',
             'quiet': True,
             'extract_flat': True,
             'skip_download': True}
@@ -27,19 +27,6 @@ class music(commands.Cog):
     def setup(self):
         for guild in self.bot.guilds:
             self.queue[guild.id] = {'urls':[],'titles':[]}
-
-    @commands.command()
-    async def join(self, ctx):
-
-        if ctx.author.voice is None:
-            await ctx.send('SuS!! U r not in voice channel.')
-
-        voice_channel = ctx.author.voice.channel
-
-        if ctx.voice_client is None:
-            await voice_channel.connect()
-        else:
-            await ctx.voice_client.move_to(voice_channel)
 
     @commands.command()
     async def leave(self,ctx):
@@ -67,10 +54,9 @@ class music(commands.Cog):
 
         return 'https://www.youtube.com/watch?v='+info['entries'][0].get('id')
 
-    async def get_link(self, ctx, song):
-        url = youtube_dl.YoutubeDL(self.ydl_opts).extract_info(song, download=False)
+    async def get_link(self, ctx, url, playlist):
 
-        if 'entries' in url: #checking whether it`s playlist or not
+        if playlist:
 
             for i in url['entries']:#if playlist
 
@@ -101,14 +87,15 @@ class music(commands.Cog):
 
     @commands.command()
     async def play(self, ctx, *, song=None):
+        playlist = False
 
         if song is None:
             return await ctx.send('You must include a song to play')
 
         if ctx.voice_client is None:
-            return await ctx.author.voice.channel.connect()
+            await ctx.author.voice.channel.connect()
 
-        if not re.search('youtube.com/watch?|https://youtube/|https//music.youtube.com/watch?', song):
+        if not re.search('youtube.com/watch?|https://youtube/|https://music.youtube.com', song):
 
             await ctx.send('Searching for a song, it will probably take a few seconds')
 
@@ -119,41 +106,33 @@ class music(commands.Cog):
 
             song = result
 
+        url = youtube_dl.YoutubeDL(self.ydl_opts).extract_info(song, download=False)
+        """If below is for checking whether it`s playlist or not and if it is, it will store this information for later use"""
+        if 'entries' in url:
+            playlist = True
+
+        print(song, 1)
+
         if ctx.voice_client.source is not None:
             queue_len = len(self.queue[ctx.guild.id]['urls'])
 
-            if queue_len < 20:
-                await self.get_link(ctx, song)
-                return await ctx.send(f"I am currently playing a song, this song has been added to the queue at position: {queue_len + 1}.")
+            if queue_len < 100:
+                await self.get_link(ctx, url, playlist)
+                if not playlist:
+                    return await ctx.send(f"I am currently playing a song, this song has been added to the queue at position: {queue_len + 1}.")
+                else:
+                    return await ctx.send(f"I am currently playing a song, those songs have been added to the queue.")
 
             else:
                 return await ctx.send("Sorry,I can only queue up to 20 songs, please wait for the current song to finish. ")
 
         else:
-            await self.get_link(ctx, song)
+            if playlist == True:
+                await ctx.send('Forming playlist, It`ll probably take some time')
 
+            await self.get_link(ctx, url, playlist)
             await self.play_song(ctx, self.queue[ctx.guild.id]['urls'][0])
             self.queue[ctx.guild.id]['urls'].pop(0)
-
-    @commands.command()
-    async def playlist(self, ctx, songs):
-
-        if songs is None:
-            return await ctx.send('You must include an url for playlist to play')
-
-        if ctx.voice_client is None:
-            return await ctx.author.voice.channel.connect()
-
-        if ctx.voice_client.source is None:
-
-            await ctx.send('Forming playlist, It`ll probably take some time')
-            await self.get_link(ctx, songs)
-
-            await self.play_song(ctx, self.queue[ctx.guild.id]['urls'][0])
-            self.queue[ctx.guild.id]['urls'].pop(0)
-
-        else:
-            await ctx.send('I can`t form playlist when I play the song')
 
     @commands.command()
     async def queue(self, ctx):
@@ -179,7 +158,8 @@ class music(commands.Cog):
         await ctx.voice_client.resume()
 
     @commands.command()
-    async def skip(self, ctx):
+    async def skip(self,ctx, *args):
+        #args is the amount of songs you want to skip(it`s optional)(default=1)
         if ctx.voice_client is None:
             return await ctx.send("I am not playing any song.")
 
@@ -189,57 +169,69 @@ class music(commands.Cog):
         if ctx.author.voice.channel.id != ctx.voice_client.channel.id:
             return await ctx.send("I am not currently playing any songs for you.")
 
-        poll = discord.Embed(title=f"Vote to Skip Song by - {ctx.author.name}#{ctx.author.discriminator}",
-                             description="**80% of the voice channel must vote to skip for it to pass.**",
-                             colour=discord.Colour.blue())
-        poll.add_field(name="Skip", value=":white_check_mark:")
-        poll.add_field(name="Stay", value=":no_entry_sign:")
-        poll.set_footer(text="Voting ends in 7 seconds.")
+        else:
+            poll = discord.Embed(title=f"Vote to Skip Song by - {ctx.author.name}#{ctx.author.discriminator}",
+                                 description="**80% of the voice channel must vote to skip for it to pass.**",
+                                 colour=discord.Colour.blue())
+            poll.add_field(name="Skip", value=":white_check_mark:")
+            poll.add_field(name="Stay", value=":no_entry_sign:")
+            poll.set_footer(text="Voting ends in 7 seconds.")
 
-        poll_msg = await ctx.send(
-            embed=poll)  # only returns temporary message, we need to get the cached message to get the reactions
-        poll_id = poll_msg.id
+            poll_msg = await ctx.send(
+                embed=poll)  # only returns temporary message, we need to get the cached message to get the reactions
+            poll_id = poll_msg.id
 
-        await poll_msg.add_reaction(u"\u2705")  # yes
-        await poll_msg.add_reaction(u"\U0001F6AB")  # no
+            await poll_msg.add_reaction(u"\u2705")  # yes
+            await poll_msg.add_reaction(u"\U0001F6AB")  # no
 
-        await asyncio.sleep(7)  # 15 seconds to vote
+            await asyncio.sleep(7)  # 15 seconds to vote
 
-        poll_msg = await ctx.channel.fetch_message(poll_id)
+            poll_msg = await ctx.channel.fetch_message(poll_id)
 
-        votes = {u"\u2705": 0, u"\U0001F6AB": 0}
-        reacted = []
+            votes = {u"\u2705": 0, u"\U0001F6AB": 0}
+            reacted = []
 
-        for reaction in poll_msg.reactions:
-            if reaction.emoji in [u"\u2705", u"\U0001F6AB"]:
-                async for user in reaction.users():
-                    if user.voice.channel.id == ctx.voice_client.channel.id and user.id not in reacted and not user.bot:
-                        votes[reaction.emoji] += 1
+            for reaction in poll_msg.reactions:
+                if reaction.emoji in [u"\u2705", u"\U0001F6AB"]:
+                    async for user in reaction.users():
+                        if user.voice.channel.id == ctx.voice_client.channel.id and user.id not in reacted and not user.bot:
+                            votes[reaction.emoji] += 1
 
-                        reacted.append(user.id)
+                            reacted.append(user.id)
 
-        skip = False
+            skip = False
 
-        if votes[u"\u2705"] > 0:
-            if votes[u"\U0001F6AB"] == 0 or votes[u"\u2705"] / (
-                    votes[u"\u2705"] + votes[u"\U0001F6AB"]) > 0.79:  # 80% or higher
-                skip = True
-                embed = discord.Embed(title="Skip Successful",
-                                      description="***Voting to skip the current song was succesful, skipping now.***",
-                                      colour=discord.Colour.green())
+            if votes[u"\u2705"] > 0:
+                if votes[u"\U0001F6AB"] == 0 or votes[u"\u2705"] / (
+                        votes[u"\u2705"] + votes[u"\U0001F6AB"]) > 0.79:  # 80% or higher
+                    skip = True
+                    embed = discord.Embed(title="Skip Successful",
+                                          description="***Voting to skip the current song was succesful, skipping now.***",
+                                          colour=discord.Colour.green())
 
-        if not skip:
-            embed = discord.Embed(title="Skip Failed",
-                                  description="*Voting to skip the current song has failed.*\n\n**Voting failed, the vote requires at least 80% of the members to skip.**",
-                                  colour=discord.Colour.red())
+            if not skip:
+                embed = discord.Embed(title="Skip Failed",
+                                      description="*Voting to skip the current song has failed.*\n\n**Voting failed, the vote requires at least 80% of the members to skip.**",
+                                      colour=discord.Colour.red())
 
-        embed.set_footer(text="Voting has ended.")
+            embed.set_footer(text="Voting has ended.")
 
-        await poll_msg.clear_reactions()
-        await poll_msg.edit(embed=embed)
+            await poll_msg.clear_reactions()
+            await poll_msg.edit(embed=embed)
 
-        if skip:
-            ctx.voice_client.stop()
+            if skip:
+                if len(args) == 1:
+                    self.queue[ctx.guild.id]['urls'] = self.queue[ctx.guild.id]['urls'][(int(args[0])-1):]
+                    self.queue[ctx.guild.id]['titles'] = self.queue[ctx.guild.id]['titles'][(int(args[0])-1):]
+
+                ctx.voice_client.stop()
+
+    @commands.command()
+    async def stop(self, ctx):
+        ctx.voice_client.stop()
+        self.queue[ctx.guild.id]['urls'],self.queue[ctx.guild.id]['titles'] = [],[]
+
+
 
 def setup(client):
     client.add_cog(music(client))
