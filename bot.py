@@ -3,7 +3,7 @@ from discord.ext import commands
 import re
 from decode import *
 from defweather import *
-import os, random
+import os,random
 import time
 from music import music
 from botconfig import token
@@ -11,7 +11,7 @@ from botconfig import token
 intents = discord.Intents.default()
 intents.members = True
 
-bot = commands.Bot(command_prefix = '%', intents=intents)
+bot = commands.Bot(command_prefix='%', intents=intents)
 bot.remove_command('help')
 
 @bot.event
@@ -55,7 +55,7 @@ async def on_raw_reaction_add(payload):
         chanid = payload.channel_id
         channel = bot.get_channel(chanid)
         s = await channel.fetch_message(mesid)
-        await channel.send (decod(s.content))
+        await channel.send(decod(s.content))
 
 @bot.command()
 async def help(ctx):
@@ -66,7 +66,7 @@ async def help(ctx):
 
     embed.set_author(name = 'Help')
     embed.add_field(name = 'Common commands', value='%clear - Delets messages\n%temp - gives the temperature in the chosen city(example: %temp Kyiv)\n%weather - gives the weather in the chosen city(example: %weather Kyiv)', inline=False)
-    embed.add_field(name = 'Music commands', value='%join - makes bot join your voice channel\n%leave - makes bot leave voice channel\n%play - makes bot play music from link or name \n(example: %play https://www.youtube.com/watch?v=nybtOIxlku8)\n%playlist - makes bot play playlist from link (example is the same as %play)\n%queue - shows the current queue of the songs\n%pause - pauses the song\n%resume - resumes the song\n%skip - skips the song', inline=False)
+    embed.add_field(name = 'Music commands', value='\n%leave - makes bot leave voice channel\n%play - makes bot play music from link or name also can play playlists (playlists only from link)\n(example: %play https://www.youtube.com/watch?v=nybtOIxlku8)\n%queue - shows the current queue of the songs\n%pause - pauses the song\n%resume - resumes the song\n%skip - skips the song(You can also specify how much songs you`d like to skip, example:%skip 5 (number is optional))\n%stop - to clear the music queue', inline=False)
     embed.add_field(name = 'Other commands', value='react on message with 🔓 to translate message from the English keyboard layout to Ukrainian', inline=False)
 
     await ctx.send(embed = embed)
