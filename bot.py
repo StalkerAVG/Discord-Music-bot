@@ -9,7 +9,7 @@ from music import music
 from botconfig import token
 
 intents = discord.Intents.default()
-intents.members = True
+intents.message_content = True
 
 bot = commands.Bot(command_prefix='%', intents=intents)
 bot.remove_command('help')
@@ -89,8 +89,11 @@ async def weather(ctx, city):
 
 async def setup():
     await bot.wait_until_ready()
-    bot.add_cog(music(bot))
+    await bot.add_cog(music(bot))
 
+async def main():
+    async with bot:
+        bot.loop.create_task(setup())
+        await bot.start('ODgwNzU3NDI5ODcxMTgxODY1.GMRmyD.jf2DOu-0FMpWhYQhC4zkuit4KkL61EEVbAsNxA')
 
-bot.loop.create_task(setup())
-bot.run(token)
+asyncio.run(main())
