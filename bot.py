@@ -94,6 +94,6 @@ async def setup():
 async def main():
     async with bot:
         bot.loop.create_task(setup())
-        await bot.start('ODgwNzU3NDI5ODcxMTgxODY1.GMRmyD.jf2DOu-0FMpWhYQhC4zkuit4KkL61EEVbAsNxA')
+        await bot.start(token)
 
 asyncio.run(main())
