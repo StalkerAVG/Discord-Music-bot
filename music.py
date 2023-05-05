@@ -1,8 +1,10 @@
 import discord
 from discord.ext import commands
-import youtube_dl
+import yt_dlp as youtube_dl
+import os
 import asyncio
-import re
+import tempfile
+import random
 
 class music(commands.Cog):
 
@@ -16,13 +18,14 @@ class music(commands.Cog):
         self.setup()
         self.ffmpeg_options = {
             'options': '-vn',
-            "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
+            "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+            'audio_codec': 'opus'
         }
-        self.ydl_opts = {'format': "bestaudio",
-            'cookiefile': 'youtube.com_cookies.txt',
-            'quiet': True,
-            'extract_flat': True,
-            'skip_download': True}
+        self.ydl_opts = {
+            'format': 'bestaudio/best/m4a',
+            'default_search': 'ytsearch',
+            "extract_flat": "in_playlist",
+        }
 
     def setup(self):
         for guild in self.bot.guilds:
@@ -47,8 +50,8 @@ class music(commands.Cog):
 
     async def search_song(self, amount, url, get_url=False):
 
-        info = await self.bot.loop.run_in_executor(None, lambda: youtube_dl.YoutubeDL({'format': "bestaudio",
-            'cookiefile': 'youtube.com_cookies.txt'}).extract_info(f'ytsearch{amount}:{url}', download = False, ie_key="YoutubeSearch"))
+        info = await self.bot.loop.run_in_executor(None, lambda: youtube_dl.YoutubeDL(self.ydl_opts).extract_info(
+            f'ytsearch{amount}:{url}', download=False, ie_key="YoutubeSearch"))
 
         if len(info['entries']) == 0: return None
 
@@ -61,24 +64,37 @@ class music(commands.Cog):
             for i in url['entries']:#if playlist
 
                 title = i.get('title')
-                url = i.get('url')
-                self.queue[ctx.guild.id]['urls'].append("https://www.youtube.com/watch?v="+url)
+                url = i['url']
+                self.queue[ctx.guild.id]['urls'].append(url)
                 self.queue[ctx.guild.id]['titles'].append(title)
 
+            sf_pl = list(zip(self.queue[ctx.guild.id]['urls'],self.queue[ctx.guild.id]['titles']))
+
+            random.shuffle(sf_pl)
+
+            self.queue[ctx.guild.id]['urls'], self.queue[ctx.guild.id]['titles'] = zip(*sf_pl)
+            self.queue[ctx.guild.id]['urls'], self.queue[ctx.guild.id]['titles'] = list(self.queue[ctx.guild.id]['urls']), list(self.queue[ctx.guild.id]['titles'])
 
         else:#if not playlist
 
-            title, url = url.get('title'), url['formats'][0]['url']
+            title, url = url.get('title'), url['fragments'][0]['url']
             self.queue[ctx.guild.id]['urls'].append(url)
             self.queue[ctx.guild.id]['titles'].append(title)
 
     async def play_song(self, ctx, url):
 
-        url = youtube_dl.YoutubeDL({'format': "bestaudio",
-            'cookiefile': 'youtube.com_cookies.txt'}).extract_info(url, download=False)
+        if 'rr' not in url:
+            with youtube_dl.YoutubeDL(self.ydl_opts) as ydl:
+                url = ydl.extract_info(url, download=False)['fragments'][0]['url']
 
-        source_url = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(executable=r"E:\ffmpeg\bin\ffmpeg.exe", source = url['formats'][0]['url'], **self.ffmpeg_options))
-        ctx.voice_client.play(source_url, after=lambda error: self.bot.loop.create_task(self.check_queue(ctx)))
+        ffmpeg_options = {
+            'options': '-vn',
+            "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+            'executable': r"C:\ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe"
+        }
+
+        source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source=url, **ffmpeg_options))
+        ctx.voice_client.play(source, after=lambda error: self.bot.loop.create_task(self.check_queue(ctx)))
         ctx.voice_client.source.volume = 0.5
 
         title = self.queue[ctx.guild.id]['titles'].pop(0)
@@ -95,7 +111,7 @@ class music(commands.Cog):
         if ctx.voice_client is None:
             await ctx.author.voice.channel.connect()
 
-        if not re.search('youtube.com/watch?|https://youtube/|https://music.youtube.com', song):
+        if song[0:4] != "http" and song[0:3] != "www":
 
             await ctx.send('Searching for a song, it will probably take a few seconds')
 
@@ -107,11 +123,10 @@ class music(commands.Cog):
             song = result
 
         url = youtube_dl.YoutubeDL(self.ydl_opts).extract_info(song, download=False)
-        """If below is for checking whether it`s playlist or not and if it is, it will store this information for later use"""
+
+        """'If' below is for checking whether it`s playlist or not and if it is, it will store this information for later use"""
         if 'entries' in url:
             playlist = True
-
-        print(song, 1)
 
         if ctx.voice_client.source is not None:
             queue_len = len(self.queue[ctx.guild.id]['urls'])
@@ -127,6 +142,7 @@ class music(commands.Cog):
                 return await ctx.send("Sorry,I can only queue up to 20 songs, please wait for the current song to finish. ")
 
         else:
+
             if playlist == True:
                 await ctx.send('Forming playlist, It`ll probably take some time')
 
