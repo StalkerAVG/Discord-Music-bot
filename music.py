@@ -1,31 +1,40 @@
 import discord
 from discord.ext import commands
 import yt_dlp as youtube_dl
-import os
 import asyncio
-import tempfile
 import random
 
 class music(commands.Cog):
 
     def __init__(self, bot):
+        
+        # Variables to manage music playback and queue
         self.bot = bot
-
+        
         self.playing = False
         self.is_paused = False
-
+        
         self.queue = {}
         self.setup()
+
+         # List of control emojis for music playback
+        self.controls = ["⏪", "⏩", "⏯", "🔉", "🔊"]
+
+        # FFmpeg options for audio streaming
         self.ffmpeg_options = {
             'options': '-vn',
             "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
             'audio_codec': 'opus'
         }
+        # Options for YouTube video extraction
         self.ydl_opts = {
             'format': 'bestaudio/best/m4a',
             'default_search': 'ytsearch',
             "extract_flat": "in_playlist",
         }
+
+        
+        self.bot.add_listener(self.on_reaction_add)
 
     def setup(self):
         for guild in self.bot.guilds:
@@ -41,8 +50,15 @@ class music(commands.Cog):
     async def check_queue(self, ctx):
 
         if len(self.queue[ctx.guild.id]['urls']) > 0:
+            
+            last_url = self.queue[ctx.guild.id]['urls'].pop(0)
+            last_title = self.queue[ctx.guild.id]['titles'].pop(0)
+            
+            self.queue[ctx.guild.id]['last_one'] = {'last_url': last_url, 'last_title': last_title}
+
             await self.play_song(ctx, self.queue[ctx.guild.id]['urls'][0])
-            self.queue[ctx.guild.id]['urls'].pop(0)
+
+
 
         else:
             ctx.voice_client.stop()
@@ -61,7 +77,7 @@ class music(commands.Cog):
 
         if playlist:
 
-            for i in url['entries']:#if playlist
+            for i in url['entries']:
 
                 title = i.get('title')
                 url = i['url']
@@ -75,9 +91,9 @@ class music(commands.Cog):
             self.queue[ctx.guild.id]['urls'], self.queue[ctx.guild.id]['titles'] = zip(*sf_pl)
             self.queue[ctx.guild.id]['urls'], self.queue[ctx.guild.id]['titles'] = list(self.queue[ctx.guild.id]['urls']), list(self.queue[ctx.guild.id]['titles'])
 
-        else:#if not playlist
+        else:
 
-            title, url = url.get('title'), url['fragments'][0]['url']
+            title, url = url.get('title'), url['url']
             self.queue[ctx.guild.id]['urls'].append(url)
             self.queue[ctx.guild.id]['titles'].append(title)
 
@@ -85,21 +101,26 @@ class music(commands.Cog):
 
         if 'rr' not in url:
             with youtube_dl.YoutubeDL(self.ydl_opts) as ydl:
-                url = ydl.extract_info(url, download=False)['fragments'][0]['url']
+                url = ydl.extract_info(url, download=False)['url']
 
+        #redefining ffmpeg options
         ffmpeg_options = {
             'options': '-vn',
             "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-            'executable': r"C:\ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe"
+            'executable': r"ffmpeg.exe"
         }
 
         source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source=url, **ffmpeg_options))
         ctx.voice_client.play(source, after=lambda error: self.bot.loop.create_task(self.check_queue(ctx)))
         ctx.voice_client.source.volume = 0.5
 
-        title = self.queue[ctx.guild.id]['titles'].pop(0)
+        title = self.queue[ctx.guild.id]['titles'][0]
 
-        await ctx.send(f'Now playing: {title}')
+
+        control_message = await ctx.send(f'Now playing: {title}')
+        for control in self.controls:
+            await control_message.add_reaction(control)
+
 
     @commands.command()
     async def play(self, ctx, *, song=None):
@@ -134,7 +155,7 @@ class music(commands.Cog):
             if queue_len < 100:
                 await self.get_link(ctx, url, playlist)
                 if not playlist:
-                    return await ctx.send(f"I am currently playing a song, this song has been added to the queue at position: {queue_len + 1}.")
+                    return await ctx.send(f"I am currently playing a song, this song has been added to the queue at position: {queue_len}.")
                 else:
                     return await ctx.send(f"I am currently playing a song, those songs have been added to the queue.")
 
@@ -148,7 +169,9 @@ class music(commands.Cog):
 
             await self.get_link(ctx, url, playlist)
             await self.play_song(ctx, self.queue[ctx.guild.id]['urls'][0])
-            self.queue[ctx.guild.id]['urls'].pop(0)
+            last_url = self.queue[ctx.guild.id]['urls']
+            self.queue[ctx.guild.id]['las_one'] = {'last_url':last_url, 'last_title':self.queue[ctx.guild.id]['titles'][0]}
+
 
     @commands.command()
     async def queue(self, ctx):
@@ -157,21 +180,19 @@ class music(commands.Cog):
             return await ctx.send("There are currently no songs in the queue")
 
         embed = discord.Embed(title='Song Queue', description = "", colour=discord.Colour.dark_blue())
-        i = 1
+        i = 0
         for title in self.queue[ctx.guild.id]['titles']:
+
+            if not i:
+                embed.description += f"Currently Playing - {title}\n"
+
+            else:
                 embed.description += f"{i}) {title}\n"
-                i += 1
+
+            i += 1
 
         embed.set_footer(text="Thanks for using me!(👉ﾟヮﾟ)👉")
         await ctx.send(embed=embed)
-
-    @commands.command()
-    async def pause(self, ctx):
-        await ctx.voice_client.pause()
-
-    @commands.command()
-    async def resume(self, ctx):
-        await ctx.voice_client.resume()
 
     @commands.command()
     async def skip(self,ctx, *args):
@@ -200,7 +221,7 @@ class music(commands.Cog):
             await poll_msg.add_reaction(u"\u2705")  # yes
             await poll_msg.add_reaction(u"\U0001F6AB")  # no
 
-            await asyncio.sleep(7)  # 15 seconds to vote
+            await asyncio.sleep(7)  # 7 seconds to vote
 
             poll_msg = await ctx.channel.fetch_message(poll_id)
 
@@ -247,7 +268,55 @@ class music(commands.Cog):
         ctx.voice_client.stop()
         self.queue[ctx.guild.id]['urls'],self.queue[ctx.guild.id]['titles'] = [],[]
 
+    #funtcion to automatically
+    async def on_reaction_add(self, reaction, user):
 
+        # Get the voice state of the user who added the reaction
+        guild = reaction.message.guild
+        guild_id = reaction.message.guild.id
+
+        # Get the voice state of the user who added the reaction
+        voice_state = guild.get_member(user.id).voice
+        
+        if voice_state and voice_state.channel:
+            voice_client = guild.voice_client
+
+         # Check if the reaction is a control emoji and user not bot
+        if str(user) != "avg-bot#3559" and str(reaction.emoji) in self.controls:
+
+            if str(reaction.emoji) == '🔉':
+                voice_client.source.volume -= 0.1
+
+            elif str(reaction.emoji) == '🔊':
+                voice_client.source.volume += 0.1
+
+            elif str(reaction.emoji) == "⏩":
+                voice_client.stop()
+
+            elif str(reaction.emoji) == "⏪":
+
+                try:
+                    self.queue[guild_id]['last_one']
+
+                except NameError:
+                    pass
+
+                else:
+                    self.queue[guild_id]['urls'].insert(1,self.queue[guild_id]['last_one']['last_url'])
+                    self.queue[guild_id]['titles'].insert(1,self.queue[guild_id]['last_one']['last_title'])
+
+                voice_client.stop()
+
+            elif str(reaction.emoji) == "⏯":
+
+                if voice_client.is_playing():
+                    voice_client.pause()
+
+                else:
+                    voice_client.resume()
+
+            # Remove the user's reaction to the control emoji
+            await reaction.remove(user)
 
 def setup(client):
     client.add_cog(music(client))
