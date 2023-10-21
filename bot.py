@@ -53,7 +53,7 @@ async def help(ctx):
 
     embed.set_author(name = 'Help')
     embed.add_field(name = 'Common commands', value='%clear - Delets messages\n%temp - gives the temperature in the chosen city(example: %temp Kyiv)\n%weather - gives the weather in the chosen city(example: %weather Kyiv)', inline=False)
-    embed.add_field(name = 'Music commands', value='%leave - makes bot leave voice channel\n%play - makes bot play music from link or name also can play playlists (playlists only from link)\n(example: %play https://www.youtube.com/watch?v=nybtOIxlku8)\n%queue - shows the current queue of the songs\n%pause - pauses the song\n%resume - resumes the song\n%skip - skips the song(You can also specify how much songs you`d like to skip, example:%skip 5 (number is optional))\n%stop - to clear the music queue', inline=False)
+    embed.add_field(name = 'Music commands', value='%leave - makes bot leave voice channel\n%play - makes bot play music from link or name also can play playlists (playlists only from link)\n(example: %play https://www.youtube.com/watch?v=nybtOIxlku8)\n%queue - shows the current queue of the songs\n%skip - skips the song(You can also specify how much songs you`d like to skip, example:%skip 5 (number is optional))\n%stop - to clear the music queue', inline=False)
     embed.add_field(name = 'Other commands', value='react on message with 🔓 to translate message from the English keyboard layout to Ukrainian', inline=False)
 
     await ctx.send(embed = embed)
