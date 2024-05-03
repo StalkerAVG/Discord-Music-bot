@@ -1,12 +1,9 @@
 import discord
 from discord.ext import commands
-import re
 from decode import *
 from defweather import *
-import os,random
-import time
 from music import music
-from botconfig import token
+import asyncio
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -16,33 +13,9 @@ bot.remove_command('help')
 
 @bot.event
 async def on_ready():
-    activity = discord.Activity(type=discord.ActivityType.watching,name="Як Б'ють Кацапів")
-    await bot.change_presence(status=discord.Status.idle, activity=activity)
+    activity = discord.Activity(type=discord.ActivityType.watching,name="Something")
+    await bot.change_presence(activity=activity)
     print("Bot is ready!")
-
-@bot.event
-async def on_message(message):
-
-    if "Слава Україні" in message.content:
-        channel = message.channel
-        await channel.send('Героям Слава')
-
-    if "Glory to Ukraine" in message.content:
-        channel = message.channel
-        await channel.send('Glory to Heroes')
-
-    await bot.process_commands(message)
-
-
-@bot.event
-async def on_raw_reaction_add(payload):
-    """function for translates message from the English keyboard layout to Ukrainian"""
-    if payload.emoji.name == '🔓':
-        mesid = payload.message_id
-        chanid = payload.channel_id
-        channel = bot.get_channel(chanid)
-        s = await channel.fetch_message(mesid)
-        await channel.send(decod(s.content))
 
 @bot.command()
 async def help(ctx):
@@ -53,8 +26,7 @@ async def help(ctx):
 
     embed.set_author(name = 'Help')
     embed.add_field(name = 'Common commands', value='%clear - Delets messages\n%temp - gives the temperature in the chosen city(example: %temp Kyiv)\n%weather - gives the weather in the chosen city(example: %weather Kyiv)', inline=False)
-    embed.add_field(name = 'Music commands', value='%leave - makes bot leave voice channel\n%play - makes bot play music from link or name also can play playlists (playlists only from link)\n(example: %play https://www.youtube.com/watch?v=nybtOIxlku8)\n%queue - shows the current queue of the songs\n%skip - skips the song(You can also specify how much songs you`d like to skip, example:%skip 5 (number is optional))\n%stop - to clear the music queue', inline=False)
-    embed.add_field(name = 'Other commands', value='react on message with 🔓 to translate message from the English keyboard layout to Ukrainian', inline=False)
+    embed.add_field(name = 'Music commands', value='\n%leave - makes bot leave voice channel\n%play - makes bot play music from link or name also can play playlists (playlists only from link)\n(example: %play https://www.youtube.com/watch?v=nybtOIxlku8)\n%queue - shows the current queue of the songs\n%skip - skips the song(You can also specify how much songs you`d like to skip, example:%skip 5 (number is optional))\n%stop - to clear the music queue', inline=False)
 
     await ctx.send(embed = embed)
 
@@ -91,9 +63,11 @@ async def setup():
     await bot.wait_until_ready()
     await bot.add_cog(music(bot))
 
+
 async def main():
     async with bot:
         bot.loop.create_task(setup())
-        await bot.start(token)
+        await bot.start('token') # paste your token instead
+        await bot.add_cog(music(bot))
 
 asyncio.run(main())
