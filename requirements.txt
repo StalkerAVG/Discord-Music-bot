@@ -1,2 +1,6 @@
-regex==2021.10.08
-discord.py==1.8.3
+ffmpeg==1.4
+discord.py==2.3.2
+requests==2.31.0
+beautifulsoup4==4.13.0b2
+yt-dlp==2024.4.21.232710.dev0
+regex==2024.4.16
