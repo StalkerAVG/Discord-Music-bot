@@ -17,7 +17,8 @@ class music(commands.Cog):
         self.ydl_opts = {
             'format': 'bestaudio/best/m4a',
             'default_search': 'ytsearch',
-            "extract_flat": "in_playlist",
+            'extract_flat': 'in_playlist',
+            # 'match_filter': youtube_dl.utils.match_filter_func("!is_live"),
         }
         self.controls = ["⏪", "⏩", "⏯", "🔉", "🔊"]
         self.bot.add_listener(self.on_reaction_add)
@@ -25,7 +26,7 @@ class music(commands.Cog):
 
     def setup(self):
         for guild in self.bot.guilds:
-            self.queue[guild.id] = {'urls': [], 'titles': []}
+            self.queue[guild.id] = {'urls': [], 'titles': [], 'duration': [] ,'last_one': {}}
 
     @commands.command()
     async def leave(self, ctx):
@@ -40,14 +41,15 @@ class music(commands.Cog):
 
             last_url = self.queue[ctx.guild.id]['urls'].pop(0)
             last_title = self.queue[ctx.guild.id]['titles'].pop(0)
+            last_duration = self.queue[ctx.guild.id]['duration'].pop(0)
 
-            self.queue[ctx.guild.id]['last_one'] = {'last_url': last_url, 'last_title': last_title}
+            self.queue[ctx.guild.id]['last_one'] = {'last_url': last_url, 'last_title': last_title,'last_duration': last_duration}
 
             try:
                 await self.play_song(ctx, self.queue[ctx.guild.id]['urls'][0])
-
             except IndexError:
-                await ctx.send('Seems like there is no songs left')
+                await ctx.voice_client.stop()
+                await ctx.send('There are no songs in this guild.')
 
         else:
             ctx.voice_client.stop()
@@ -60,9 +62,15 @@ class music(commands.Cog):
 
         if len(info['entries']) == 0: return None
 
-        return 'https://www.youtube.com/watch?v='+info['entries'][0].get('id')
+        #Skipping if found song is live stream
+        for entry in info['entries']:
+            if not entry.get('live_status') == 'is_live':
+                return 'https://www.youtube.com/watch?v=' + entry.get('id')
+
+        return None
 
     async def get_link(self, ctx, url, playlist):
+        
         """Get the link of the song or playlist."""
         if playlist:
 
@@ -70,23 +78,28 @@ class music(commands.Cog):
 
                 title = i.get('title')
                 url = i['url']
+                duration = i.get('duration', 'None')
                 self.queue[ctx.guild.id]['urls'].append(url)
                 self.queue[ctx.guild.id]['titles'].append(title)
+                self.queue[ctx.guild.id]['duration'].append(f'{duration//60}:{duration%60}')
 
-            sf_pl = list(zip(self.queue[ctx.guild.id]['urls'], self.queue[ctx.guild.id]['titles']))
+
+            sf_pl = list(zip(self.queue[ctx.guild.id]['urls'], self.queue[ctx.guild.id]['titles'],self.queue[ctx.guild.id]['duration']))
 
             random.shuffle(sf_pl)
 
-            self.queue[ctx.guild.id]['urls'], self.queue[ctx.guild.id]['titles'] = zip(*sf_pl)
-            self.queue[ctx.guild.id]['urls'], self.queue[ctx.guild.id]['titles'] = list(self.queue[ctx.guild.id]['urls']), list(self.queue[ctx.guild.id]['titles'])
+            self.queue[ctx.guild.id]['urls'], self.queue[ctx.guild.id]['titles'], self.queue[ctx.guild.id]['duration'] = zip(*sf_pl)
+            self.queue[ctx.guild.id]['urls'], self.queue[ctx.guild.id]['titles'], self.queue[ctx.guild.id]['duration'] = list(self.queue[ctx.guild.id]['urls']), list(self.queue[ctx.guild.id]['titles']), list(self.queue[ctx.guild.id]['duration'])
 
         else:  # if not playlist
 
-            title, url = url.get('title'), url['url']
+            title, url, duration = url.get('title'), url['url'], url.get('duration')
             self.queue[ctx.guild.id]['urls'].append(url)
             self.queue[ctx.guild.id]['titles'].append(title)
+            self.queue[ctx.guild.id]['duration'].append(f'{duration//60}:{duration%60}')
 
     async def play_song(self, ctx, url):
+
         """Play the song in the voice channel."""
         if 'rr' not in url:
             with youtube_dl.YoutubeDL(self.ydl_opts) as ydl:
@@ -99,8 +112,9 @@ class music(commands.Cog):
         ffmpeg_options = {
             'options': '-vn',
             "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-            'executable': r"C:\ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe"
+            'executable': r"Path:\to\ffmpeg.exe"
         }
+
 
         source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source=url, **ffmpeg_options))
         ctx.voice_client.play(source, after=lambda error: self.bot.loop.create_task(self.check_queue(ctx)))
@@ -108,7 +122,35 @@ class music(commands.Cog):
 
         title = self.queue[ctx.guild.id]['titles'][0]
 
-        control_message = await ctx.send(f'Now playing: {title}')
+        try:
+            next_title  = self.queue[ctx.guild.id]['titles'][1]
+        except IndexError:
+            next_title = None
+
+        #Creating embed for player
+
+        embed = discord.Embed(
+            colour=discord.Colour.dark_blue(),)
+
+        embed.add_field(name='Now Playing',
+                    value=title, inline=False,)
+        embed.add_field(name='Duration',
+                        value=self.queue[ctx.guild.id]['duration'][0],
+                        inline=True)
+        embed.add_field(name='Queue lenght',
+                        value=len(self.queue[ctx.guild.id]['urls'])-1,
+                        inline=True)
+        embed.add_field(name='',
+                        value='',
+                        inline=False)
+        embed.add_field(name="Previous",
+                        value=self.queue[ctx.guild.id]['last_one'].get('last_title', 'None'),
+                        inline=True)
+        embed.add_field(name='Next',
+                        value=next_title,
+                        inline=True)
+
+        control_message = await ctx.send(embed=embed)
         for control in self.controls:
             await control_message.add_reaction(control)
 
@@ -165,7 +207,7 @@ class music(commands.Cog):
             await self.get_link(ctx, url, playlist)
             await self.play_song(ctx, self.queue[ctx.guild.id]['urls'][0])
 
-            self.queue[ctx.guild.id]['las_one'] = {'last_url': self.queue[ctx.guild.id]['urls'], 'last_title': self.queue[ctx.guild.id]['titles'][0]}
+            self.queue[ctx.guild.id]['last_one'] = {'last_url': self.queue[ctx.guild.id]['urls'], 'last_title': self.queue[ctx.guild.id]['titles'][0], 'last_duration': self.queue[ctx.guild.id]['duration'][0]}
 
     @commands.command()
     async def queue(self, ctx):
@@ -178,7 +220,7 @@ class music(commands.Cog):
         for title in self.queue[ctx.guild.id]['titles']:
 
             if not i:
-                embed.description += f"currently playing - {title}\n"
+                embed.description += f"Currently playing - {title}\n"
 
             else:
                 embed.description += f"{i}) {title}\n"
@@ -308,6 +350,7 @@ class music(commands.Cog):
                 else:
                     self.queue[guild_id]['urls'].insert(1, self.queue[guild_id]['last_one']['last_url'])
                     self.queue[guild_id]['titles'].insert(1, self.queue[guild_id]['last_one']['last_title'])
+                    self.queue[guild_id]['duration'].insert(1, self.queue[guild_id]['last_one']['last_duration'])
 
                 voice_client.stop()
 
@@ -329,14 +372,13 @@ class music(commands.Cog):
         """
 
         # Check if the member has left a voice channel or moved to a different voice channel
-        if after.channel is None or after.channel.name != before.channel.name:
+        if after.channel is None or before.channel is None or after.channel.name != before.channel.name:
 
             # Loop over all voice clients (connections to voice channels) that the bot has
             for voice_client in self.bot.voice_clients:
 
                 # Check if the voice client is connected to the channel the member left or the channel they joined
                 if voice_client.channel == before.channel or voice_client.channel == after.channel:
-
                     # Get the number of members in the voice channel
                     num_mem = len(voice_client.guild.get_channel(voice_client.channel.id).members)
 
