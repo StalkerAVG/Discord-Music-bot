@@ -96,7 +96,7 @@ class music(commands.Cog):
             title, url, duration = url.get('title'), url['url'], url.get('duration')
             self.queue[ctx.guild.id]['urls'].append(url)
             self.queue[ctx.guild.id]['titles'].append(title)
-            self.queue[ctx.guild.id]['duration'].append(f'{duration//60}:{duration%60}')
+            self.queue[ctx.guild.id]['duration'].append(f"{duration // 60:02d}:{duration % 60:02d}")
 
     async def play_song(self, ctx, url):
 
