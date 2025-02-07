@@ -199,7 +199,7 @@ class music(commands.Cog):
 
     @commands.command()
     async def play(self, ctx, *, song=None):
-	print("play command executed")
+        print("play command executed")
         """Play a song or add it to the queue."""
         playlist = False
         playlist_spotify = False
