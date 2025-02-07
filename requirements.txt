@@ -1,6 +1,8 @@
 ffmpeg==1.4
-discord.py==2.3.2
-requests==2.31.0
+discord.py==2.4.0
+ffmpeg==1.4
+python-dotenv==1.0.1
 beautifulsoup4==4.13.0b2
-yt-dlp==2024.4.21.232710.dev0
+yt-dlp==2025.1.30.232843.dev0
 regex==2024.4.16
+spotipy==2.25.0
