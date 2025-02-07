@@ -143,7 +143,6 @@ class music(commands.Cog):
         ffmpeg_options = {
             'options': '-vn',
             "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-            'executable': r"path to ffmpeg.exe"
         }
 
 
@@ -200,6 +199,7 @@ class music(commands.Cog):
 
     @commands.command()
     async def play(self, ctx, *, song=None):
+	print("play command executed")
         """Play a song or add it to the queue."""
         playlist = False
         playlist_spotify = False
