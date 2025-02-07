@@ -1,9 +1,10 @@
 import discord
 from discord.ext import commands
-from decode import *
-from defweather import *
 from music import music
 import asyncio
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -25,7 +26,7 @@ async def help(ctx):
     )
 
     embed.set_author(name = 'Help')
-    embed.add_field(name = 'Common commands', value='%clear - Delets messages\n%temp - gives the temperature in the chosen city(example: %temp Kyiv)\n%weather - gives the weather in the chosen city(example: %weather Kyiv)', inline=False)
+    embed.add_field(name = 'Common commands', value='%clear - Delets messages\n%temp - gives the temperature in the chosen city(example: %temp Kyiv)(not supported anymore)\n%weather - gives the weather in the chosen city(example: %weather Kyiv)(not supported anymore)', inline=False)
     embed.add_field(name = 'Music commands', value='\n%leave - makes bot leave voice channel\n%play - makes bot play music from link or name also can play playlists (playlists only from link)\n(example: %play https://www.youtube.com/watch?v=nybtOIxlku8)\n%queue - shows the current queue of the songs\n%skip - skips the song(You can also specify how much songs you`d like to skip, example:%skip 5 (number is optional))\n%stop - to clear the music queue', inline=False)
 
     await ctx.send(embed = embed)
@@ -67,7 +68,7 @@ async def setup():
 async def main():
     async with bot:
         bot.loop.create_task(setup())
-        await bot.start('token') # paste your token instead
+        await bot.start(os.getenv('BOT_TOKEN'))
         await bot.add_cog(music(bot))
 
 asyncio.run(main())
