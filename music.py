@@ -1,8 +1,25 @@
+import re
+
 import discord
 from discord.ext import commands
+from discord.ui import Button, View
+from discord import ButtonStyle
 import yt_dlp as youtube_dl
 import asyncio
 import random
+import os
+from dotenv import load_dotenv
+load_dotenv()
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
+
+
+SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
+SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
+sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
+    client_id=SPOTIFY_CLIENT_ID,
+    client_secret=SPOTIFY_CLIENT_SECRET
+))
 
 MAX_QUEUE_LENGTH = 100
 class music(commands.Cog):
@@ -18,11 +35,16 @@ class music(commands.Cog):
             'format': 'bestaudio/best/m4a',
             'default_search': 'ytsearch',
             'extract_flat': 'in_playlist',
-            # 'match_filter': youtube_dl.utils.match_filter_func("!is_live"),
+            'extractor_args': {
+                'spotify': {
+                    'search_query': 'ytsearch'  # Convert Spotify links to YouTube searches
+                }
+            }
         }
         self.controls = ["⏪", "⏩", "⏯", "🔉", "🔊"]
         self.bot.add_listener(self.on_reaction_add)
         self.bot.add_listener(self.on_voice_state_update)
+        self.bot.add_listener(self.on_interaction)
 
     def setup(self):
         for guild in self.bot.guilds:
@@ -62,26 +84,34 @@ class music(commands.Cog):
 
         if len(info['entries']) == 0: return None
 
-        #Skipping if found song is live stream
         for entry in info['entries']:
             if not entry.get('live_status') == 'is_live':
                 return 'https://www.youtube.com/watch?v=' + entry.get('id')
 
         return None
 
-    async def get_link(self, ctx, url, playlist):
-        
+    async def get_link(self, ctx, url, playlist, playlist_spotify=False):
+        print("getter")
+
         """Get the link of the song or playlist."""
-        if playlist:
+        if playlist or playlist_spotify:
 
             for i in url['entries']:  # if playlist
+                if playlist_spotify:
+                    # Spotify search results return YouTube links
+                    title = i.get('title')
+                    url = i.get('url')  # Extracted YouTube URL
+                    duration = i.get('duration', 'None')
 
-                title = i.get('title')
-                url = i['url']
-                duration = i.get('duration', 'None')
+                else:
+                    # Normal YouTube playlist
+                    title = i.get('title')
+                    url = i['url']
+                    duration = i.get('duration', 'None')
+
                 self.queue[ctx.guild.id]['urls'].append(url)
                 self.queue[ctx.guild.id]['titles'].append(title)
-                self.queue[ctx.guild.id]['duration'].append(f'{duration//60}:{duration%60}')
+                self.queue[ctx.guild.id]['duration'].append(f"{duration // 60:02d}:{duration % 60:02d}")
 
 
             sf_pl = list(zip(self.queue[ctx.guild.id]['urls'], self.queue[ctx.guild.id]['titles'],self.queue[ctx.guild.id]['duration']))
@@ -90,7 +120,6 @@ class music(commands.Cog):
 
             self.queue[ctx.guild.id]['urls'], self.queue[ctx.guild.id]['titles'], self.queue[ctx.guild.id]['duration'] = zip(*sf_pl)
             self.queue[ctx.guild.id]['urls'], self.queue[ctx.guild.id]['titles'], self.queue[ctx.guild.id]['duration'] = list(self.queue[ctx.guild.id]['urls']), list(self.queue[ctx.guild.id]['titles']), list(self.queue[ctx.guild.id]['duration'])
-
         else:  # if not playlist
 
             title, url, duration = url.get('title'), url['url'], url.get('duration')
@@ -98,7 +127,9 @@ class music(commands.Cog):
             self.queue[ctx.guild.id]['titles'].append(title)
             self.queue[ctx.guild.id]['duration'].append(f"{duration // 60:02d}:{duration % 60:02d}")
 
+
     async def play_song(self, ctx, url):
+        print("playing")
 
         """Play the song in the voice channel."""
         if 'rr' not in url:
@@ -112,7 +143,7 @@ class music(commands.Cog):
         ffmpeg_options = {
             'options': '-vn',
             "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-            'executable': r"Path:\to\ffmpeg.exe"
+            'executable': r"path to ffmpeg.exe"
         }
 
 
@@ -127,7 +158,7 @@ class music(commands.Cog):
         except IndexError:
             next_title = None
 
-        #Creating embed for player
+        #Embed creating
 
         embed = discord.Embed(
             colour=discord.Colour.dark_blue(),)
@@ -140,6 +171,7 @@ class music(commands.Cog):
         embed.add_field(name='Queue lenght',
                         value=len(self.queue[ctx.guild.id]['urls'])-1,
                         inline=True)
+        embed.add_field(name='\u200b', value='\u200b', inline=True)
         embed.add_field(name='',
                         value='',
                         inline=False)
@@ -149,15 +181,28 @@ class music(commands.Cog):
         embed.add_field(name='Next',
                         value=next_title,
                         inline=True)
+        embed.add_field(name='\u200b', value='\u200b', inline=True)
 
-        control_message = await ctx.send(embed=embed)
-        for control in self.controls:
-            await control_message.add_reaction(control)
+        view = View()
+
+        # Add buttons to the view
+        view.add_item(Button(style=ButtonStyle.grey, label='⏪', custom_id='previous'))
+        view.add_item(Button(style=ButtonStyle.grey, label='⏯', custom_id='pause_play'))
+        view.add_item(Button(style=ButtonStyle.grey, label='⏩', custom_id='next'))
+        view.add_item(Button(style=ButtonStyle.grey, label='🔉', custom_id='volume_down'))
+        view.add_item(Button(style=ButtonStyle.grey, label='🔊', custom_id='volume_up'))
+
+        # Send the embed with the view
+        control_message = await ctx.send(embed=embed, view=view)
+
+        #for control in self.controls:
+         #   await control_message.add_reaction(control)
 
     @commands.command()
     async def play(self, ctx, *, song=None):
         """Play a song or add it to the queue."""
         playlist = False
+        playlist_spotify = False
 
         if ctx.voice_client is None:
             await ctx.author.voice.channel.connect()
@@ -176,19 +221,55 @@ class music(commands.Cog):
 
             song = result
 
-        url = youtube_dl.YoutubeDL(self.ydl_opts).extract_info(song, download=False)
+        # Check if the song is a Spotify link
+        spotify_track_pattern = r"https://open.spotify.com/track/(\w+)"
+        spotify_playlist_pattern = r"https://open.spotify.com/playlist/(\w+)"
 
-        """If' below is for checking whether it`s playlist or not and if it is,
-         it will store this information for later use"""
-        if 'entries' in url:
-            playlist = True
+        if re.match(spotify_track_pattern, song):
+            track_id = re.search(spotify_track_pattern, song).group(1)
+            track_info = sp.track(track_id)
+            song = f"{track_info['name']} {track_info['artists'][0]['name']}"
+            song = await self.search_song(1, song)
+
+            if song is None:
+                return await ctx.send("Could not find the song on YouTube.")
+
+        elif re.match(spotify_playlist_pattern, song):
+            playlist_id = re.search(spotify_playlist_pattern, song).group(1)
+            playlist_info = sp.playlist_items(playlist_id)
+
+            url = {'entries':[]}
+
+            for track in playlist_info['items']:
+                track_name = f"{track['track']['name']} {track['track']['artists'][0]['name']}"
+                song_url = await self.search_song(1, track_name)
+
+                if song_url:  # Ensure a valid result
+                    video_info = youtube_dl.YoutubeDL(self.ydl_opts).extract_info(song_url, download=False)
+                    url['entries'].append(video_info)
+
+            playlist_spotify = True
+
+            if url['entries']:
+                await ctx.send(f"Adding Spotify playlist with {len(url['entries'])} tracks to the queue.")
+            else:
+                await ctx.send("Could not find any playable tracks from the Spotify playlist.")
+
+        if not playlist_spotify:
+            url = youtube_dl.YoutubeDL(self.ydl_opts).extract_info(song, download=False)
+
+            """If' below is for checking whether it`s playlist or not and if it is,
+             it will store this information for later use"""
+            if 'entries' in url:
+                playlist = True
+                print("playlist")
 
         if ctx.voice_client.source is not None:
             queue_len = len(self.queue[ctx.guild.id]['urls'])
 
             if queue_len < MAX_QUEUE_LENGTH:
-                await self.get_link(ctx, url, playlist)
-                if not playlist:
+                await self.get_link(ctx, url, playlist, playlist_spotify)
+                if not playlist or playlist_spotify:
                     return await ctx.send(f"I am currently playing a song, "
                                           f"this song has been added to the queue at position: {queue_len}.")
                 else:
@@ -204,7 +285,7 @@ class music(commands.Cog):
             if playlist:
                 await ctx.send('Forming playlist, It`ll probably take some time')
 
-            await self.get_link(ctx, url, playlist)
+            await self.get_link(ctx, url, playlist, playlist_spotify=playlist_spotify)
             await self.play_song(ctx, self.queue[ctx.guild.id]['urls'][0])
 
             self.queue[ctx.guild.id]['last_one'] = {'last_url': self.queue[ctx.guild.id]['urls'], 'last_title': self.queue[ctx.guild.id]['titles'][0], 'last_duration': self.queue[ctx.guild.id]['duration'][0]}
@@ -220,7 +301,7 @@ class music(commands.Cog):
         for title in self.queue[ctx.guild.id]['titles']:
 
             if not i:
-                embed.description += f"Currently playing - {title}\n"
+                embed.description += f"currently playing - {title}\n"
 
             else:
                 embed.description += f"{i}) {title}\n"
@@ -364,6 +445,58 @@ class music(commands.Cog):
 
             await reaction.remove(user)
 
+    async def on_interaction(self, interaction):
+
+        # Ensure this is a button interaction
+        if interaction.type == discord.InteractionType.component:
+
+            guild = interaction.guild
+            guild_id = interaction.guild_id
+
+            # Get the voice state of the user who triggered the interaction
+            voice_state = interaction.user.voice
+
+            # Check if the user is in a voice channel
+            if voice_state and voice_state.channel:
+                voice_client = guild.voice_client
+
+            if interaction.data['custom_id'] == 'pause_play':
+
+                if voice_client.is_playing():
+                    voice_client.pause()
+                    await interaction.response.send_message('Paused the music.', ephemeral=True)
+                elif voice_client.is_paused():
+                    voice_client.resume()
+                    await interaction.response.send_message('Resumed the music.', ephemeral=True)
+                else:
+                    await interaction.response.send_message('No music is playing right now.', ephemeral=True)
+            if interaction.data['custom_id'] == 'previous':
+
+                try:
+                    self.queue[guild_id]['last_one']
+
+                except NameError:
+                    pass
+
+                else:
+                    self.queue[guild_id]['urls'].insert(1, self.queue[guild_id]['last_one']['last_url'])
+                    self.queue[guild_id]['titles'].insert(1, self.queue[guild_id]['last_one']['last_title'])
+                    self.queue[guild_id]['duration'].insert(1, self.queue[guild_id]['last_one']['last_duration'])
+
+                voice_client.stop()
+
+            if interaction.data['custom_id'] == 'next':
+                voice_client.stop()
+
+            if interaction.data['custom_id'] == 'volume_up': 
+                voice_client.source.volume += 0.1
+	    
+            if interaction.data['custom_id'] == 'volume_down':
+                voice_client.source.volume -= 0.1
+
+            if not interaction.response.is_done():
+                await interaction.response.defer()
+
     async def on_voice_state_update(self, member, before, after):
 
         """
@@ -388,7 +521,6 @@ class music(commands.Cog):
 
                     elif num_mem > 1 and self.is_paused:
                         await voice_client.resume()
-
 
 def setup(client):
     client.add_cog(music(client))
