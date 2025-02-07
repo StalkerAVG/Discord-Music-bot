@@ -6,6 +6,10 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+#dummy imports
+import threading
+from flask import Flask
+
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -71,4 +75,19 @@ async def main():
         await bot.start(os.getenv('BOT_TOKEN'))
         await bot.add_cog(music(bot))
 
+# Dummy Flask web server for Koyeb health checks
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_server():
+    app.run(host="0.0.0.0", port=8000)
+
+# Start Flask server in a separate thread
+server_thread = threading.Thread(target=run_server, daemon=True)
+server_thread.start()
+
+# Run bot
 asyncio.run(main())
