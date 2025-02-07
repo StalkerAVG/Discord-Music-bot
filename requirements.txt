@@ -6,3 +6,4 @@ beautifulsoup4==4.13.0b2
 yt-dlp==2025.1.30.232843.dev0
 regex==2024.4.16
 spotipy==2.25.0
+Flask==3.1.0
